@@ -31,6 +31,9 @@ def parallel_feature_extraction(args):
     elif args.feature_type == 'pwc':
         from models.pwc.extract_pwc import ExtractPWC
         extractor = ExtractPWC(args)
+    elif args.feature_type == 'CLIP-ViT-B/32':
+        from models.CLIP.extract_clip import ExtractCLIP
+        extractor = ExtractCLIP(args)
     else:
         raise NotADirectoryError
 
@@ -53,17 +56,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract Features')
     parser.add_argument('--feature_type', required=True,
                         choices=['i3d', 'vggish', 'r21d_rgb', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-                                 'resnet152', 'raft', 'pwc'])
+                                 'resnet152', 'raft', 'pwc', 'CLIP-ViT-B/32'])
     parser.add_argument('--video_paths', nargs='+', help='space-separated paths to videos')
     parser.add_argument('--file_with_video_paths', help='.txt file where each line is a path')
+    parser.add_argument('--video_dir', type=str, help='dir of videos')
     parser.add_argument('--device_ids', type=int, nargs='+', help='space-separated device ids')
     parser.add_argument('--tmp_path', default='./tmp',
                         help='folder to store the temporary files used for extraction (frames or aud files)')
     parser.add_argument('--keep_tmp_files', dest='keep_tmp_files', action='store_true', default=False,
                         help='to keep temp files after feature extraction. (works only for vggish and i3d)')
-    parser.add_argument('--on_extraction', default='print', choices=['print', 'save_numpy', 'save_pickle'],
+    parser.add_argument('--on_extraction', default='print',
+                        choices=['print', 'save_numpy', 'save_pickle'],
                         help='what to do once the stack is extracted')
     parser.add_argument('--output_path', default='./output', help='where to store results if saved')
+    parser.add_argument('--output_direct', action="store_true",
+                        help='if so, files will be directly saved in output_path')
 
     parser.add_argument('--extraction_fps', type=float, help='For original video fps, leave unspecified')
     parser.add_argument('--stack_size', type=int, help='Feature time span in fps')

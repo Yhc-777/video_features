@@ -43,10 +43,13 @@ def show_predictions_on_dataset(logits: torch.FloatTensor, dataset: str):
             print(f'{logit:.3f} {smax:.3f} {cls}')
         print()
 
-def action_on_extraction(feats_dict: Dict[str, np.ndarray], video_path, output_path, on_extraction: str):
+
+def action_on_extraction(feats_dict: Dict[str, np.ndarray], video_path, output_path,
+                         on_extraction: str, output_direct: bool = False):
     '''What is going to be done with the extracted features.
 
     Args:
+        output_direct (bool): whether or not to add feature type in output file name
         feats_dict (Dict[str, np.ndarray]): A dict with features and possibly some meta. Key will be used as
                                             suffixes to the saved files if `save_numpy` or `save_pickle` is
                                             used.
@@ -65,13 +68,18 @@ def action_on_extraction(feats_dict: Dict[str, np.ndarray], video_path, output_p
             # make dir if doesn't exist
             os.makedirs(output_path, exist_ok=True)
             # extract file name and change the extention
-            fname = f'{pathlib.Path(video_path).stem}_{key}.npy'
+            if output_direct is True:
+                fname = f'{pathlib.Path(video_path).stem}.npy'
+            else:
+                fname = f'{pathlib.Path(video_path).stem}_{key}.npy'
             # construct the paths to save the features
             fpath = os.path.join(output_path, fname)
             if key != 'fps' and len(value) == 0:
                 print(f'Warning: the value is empty for {key} @ {fpath}')
             # save the info behind the each key
             np.save(fpath, value)
+            if output_direct is True:
+                break
         elif on_extraction == 'save_pickle':
             # make dir if doesn't exist
             os.makedirs(output_path, exist_ok=True)
@@ -85,6 +93,7 @@ def action_on_extraction(feats_dict: Dict[str, np.ndarray], video_path, output_p
             pickle.dump(value, open(fpath, 'wb'))
         else:
             raise NotImplementedError(f'on_extraction: {on_extraction} is not implemented')
+
 
 def form_slices(size: int, stack_size: int, step_size: int) -> list((int, int)):
     '''print(form_slices(100, 15, 15) - example'''
@@ -138,6 +147,8 @@ def form_list_from_user_input(args: argparse.Namespace) -> list:
             path_list = [line.replace('\n', '') for line in rfile.readlines()]
             # remove empty lines
             path_list = [path for path in path_list if len(path) > 0]
+    elif args.video_dir is not None:
+        path_list = list(pathlib.Path(args.video_dir).glob("*"))
     else:
         path_list = args.video_paths
 
