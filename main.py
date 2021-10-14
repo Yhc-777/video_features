@@ -52,6 +52,38 @@ def parallel_feature_extraction(args):
     extractor.progress.close()
 
 
+def cpu_feature_extraction(args):
+    if args.feature_type == 'i3d':
+        from models.i3d.extract_i3d import ExtractI3D  # defined here to avoid import errors
+        extractor = ExtractI3D(args)
+    elif args.feature_type == 'r21d_rgb':
+        from models.r21d.extract_r21d import ExtractR21D  # defined here to avoid import errors
+        extractor = ExtractR21D(args)
+    elif args.feature_type == 'vggish':
+        from models.vggish.extract_vggish import ExtractVGGish  # defined here to avoid import errors
+        fix_tensorflow_gpu_allocation(args)
+        extractor = ExtractVGGish(args)
+    elif args.feature_type in ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']:
+        from models.resnet.extract_resnet import ExtractResNet
+        extractor = ExtractResNet(args)
+    elif args.feature_type == 'raft':
+        from models.raft.extract_raft import ExtractRAFT
+        extractor = ExtractRAFT(args)
+    elif args.feature_type == 'pwc':
+        from models.pwc.extract_pwc import ExtractPWC
+        extractor = ExtractPWC(args)
+    elif args.feature_type == 'CLIP-ViT-B/32':
+        from models.CLIP.extract_clip import ExtractCLIP
+        extractor = ExtractCLIP(args)
+    else:
+        raise NotADirectoryError
+
+    video_paths = form_list_from_user_input(args)
+    indices = torch.arange(len(video_paths))
+    extractor(indices)
+    extractor.progress.close()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract Features')
     parser.add_argument('--feature_type', required=True,
@@ -61,6 +93,7 @@ if __name__ == "__main__":
     parser.add_argument('--file_with_video_paths', help='.txt file where each line is a path')
     parser.add_argument('--video_dir', type=str, help='dir of videos')
     parser.add_argument('--device_ids', type=int, nargs='+', help='space-separated device ids')
+    parser.add_argument('--cpu', action='store_true', help='use cpu only')
     parser.add_argument('--tmp_path', default='./tmp',
                         help='folder to store the temporary files used for extraction (frames or aud files)')
     parser.add_argument('--keep_tmp_files', dest='keep_tmp_files', action='store_true', default=False,
@@ -100,4 +133,7 @@ if __name__ == "__main__":
         print(f'Keeping temp files in {args.tmp_path}')
 
     sanity_check(args)
-    parallel_feature_extraction(args)
+    if args.cpu:
+        cpu_feature_extraction(args)
+    else:
+        parallel_feature_extraction(args)

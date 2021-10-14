@@ -14,17 +14,19 @@ import traceback
 
 class ExtractCLIP(torch.nn.Module):
 
-    def __init__(self, args):
+    def __init__(self, args, external_call=False):
         super(ExtractCLIP, self).__init__()
         self.feature_type = args.feature_type
         self.path_list = form_list_from_user_input(args)
         self.extraction_fps = args.extraction_fps
         self.on_extraction = args.on_extraction
-        self.output_direct = args.output_direct
-        if self.output_direct is True:
-            self.output_path = args.output_path
-        else:
-            self.output_path = os.path.join(args.output_path, self.feature_type)
+        self.external_call = external_call
+        if external_call is False:
+            self.output_direct = args.output_direct
+            if self.output_direct is True:
+                self.output_path = args.output_path
+            else:
+                self.output_path = os.path.join(args.output_path, self.feature_type)
         self.progress = tqdm(total=len(self.path_list))
 
     def forward(self, indices: torch.LongTensor):
@@ -51,12 +53,16 @@ class ExtractCLIP(torch.nn.Module):
             raise NotImplementedError
         model.eval()
 
+        feats_list = []
         for idx in indices:
             # when error occurs might fail silently when run from torch data parallel
             try:
                 feats_dict = self.extract(device, model, preprocess, self.path_list[idx])
-                action_on_extraction(feats_dict, self.path_list[idx], self.output_path,
-                                     self.on_extraction, self.output_direct)
+                if self.external_call is False:
+                    action_on_extraction(feats_dict, self.path_list[idx], self.output_path,
+                                         self.on_extraction, self.output_direct)
+                else:
+                    feats_list.append(feats_dict)
             except KeyboardInterrupt:
                 raise KeyboardInterrupt
             except Exception as e:
@@ -67,6 +73,7 @@ class ExtractCLIP(torch.nn.Module):
 
             # update tqdm progress bar
             self.progress.update()
+        return feats_list
 
     def extract(self, device: torch.device, model: torch.nn.Module,
                 preprocess_func: Callable[[PIL.Image], torch.Tensor],
