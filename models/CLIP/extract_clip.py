@@ -8,8 +8,11 @@ import mmcv
 import PIL
 from PIL import Image
 from tqdm import tqdm
-from utils.utils import (action_on_extraction, form_list_from_user_input)
 import traceback
+if "submodules" in __name__:
+    from ...utils.utils import (action_on_extraction, form_list_from_user_input)
+else:
+    from utils.utils import (action_on_extraction, form_list_from_user_input)
 
 
 class ExtractCLIP(torch.nn.Module):
@@ -94,7 +97,10 @@ class ExtractCLIP(torch.nn.Module):
         """
 
         def _process_frame(frame):
-            frame = Image.fromarray(video.get_frame(frame))
+            frame = video.get_frame(frame)
+            if frame is None:
+                return None
+            frame = Image.fromarray(frame)
             frame = preprocess_func(frame)  # C H W
             return frame
 
@@ -104,10 +110,11 @@ class ExtractCLIP(torch.nn.Module):
 
         assert self.extraction_fps is not None
         samples_num = int(frame_cnt / fps * self.extraction_fps)  # get num of sample frame to be extracted
-        samples_ix = np.linspace(0, video.frame_cnt - 1, samples_num).astype(int)
+        samples_ix = np.linspace(1, frame_cnt - 2, samples_num).astype(int)  # 开头结尾两帧可能怪怪的会返回None
         timestamps_ms = [i * mspf for i in samples_ix]
 
-        frames = torch.stack(list(map(lambda x: _process_frame(x), samples_ix))).to(device)  # T C H W
+        frames = [i for i in map(lambda x: _process_frame(x), samples_ix) if i is not None]
+        frames = torch.stack(frames).to(device)  # T C H W
         with torch.no_grad():
             features = model.encode_image(frames)  # T E
 
