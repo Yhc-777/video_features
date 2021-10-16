@@ -148,7 +148,7 @@ def form_list_from_user_input(args: argparse.Namespace) -> list:
             # remove empty lines
             path_list = [path for path in path_list if len(path) > 0]
     elif args.video_dir is not None:
-        path_list = list(pathlib.Path(args.video_dir).glob("*"))
+        path_list = [str(i) for i in pathlib.Path(args.video_dir).glob("*")]
     else:
         path_list = args.video_paths
 
