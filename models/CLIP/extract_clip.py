@@ -1,4 +1,5 @@
 import os
+import pathlib
 from typing import Dict, Union, Callable
 
 import numpy as np
@@ -9,10 +10,11 @@ import PIL
 from PIL import Image
 from tqdm import tqdm
 import traceback
+
 if "submodules" in __name__:
-    from ...utils.utils import (action_on_extraction, form_list_from_user_input)
+    from ...utils.utils import (action_on_extraction, form_list_from_user_input, extract_frames)
 else:
-    from utils.utils import (action_on_extraction, form_list_from_user_input)
+    from utils.utils import (action_on_extraction, form_list_from_user_input, extract_frames)
 
 
 class ExtractCLIP(torch.nn.Module):
@@ -22,6 +24,7 @@ class ExtractCLIP(torch.nn.Module):
         self.feature_type = args.feature_type
         self.path_list = form_list_from_user_input(args)
         self.extraction_fps = args.extraction_fps
+        self.extract_method = args.extract_method
         self.on_extraction = args.on_extraction
         self.external_call = external_call
         if external_call is False:
@@ -52,6 +55,11 @@ class ExtractCLIP(torch.nn.Module):
             model, preprocess = clip.load("RN101", device=device)
         elif self.feature_type == 'CLIP-RN50':
             model, preprocess = clip.load("RN50", device=device)
+        elif self.feature_type == 'CLIP4CLIP-ViT-B-32':
+            model_path = os.path.join(pathlib.Path(__file__).parent, 'checkpoints', 'CLIP4CLIP-ViT-B-32.pth')
+            # print(model_path)
+            assert os.path.exists(model_path)
+            model, preprocess = clip.load(model_path, device=device)
         else:
             raise NotImplementedError
         model.eval()
@@ -79,8 +87,7 @@ class ExtractCLIP(torch.nn.Module):
         return feats_list
 
     def extract(self, device: torch.device, model: torch.nn.Module,
-                preprocess_func: Callable[[PIL.Image], torch.Tensor],
-                video_path: Union[str, None] = None) -> Dict[str, np.ndarray]:
+                preprocess_func, video_path=None):
         """The extraction call. Made to clean the forward call a bit.
            Note that this function won't generate any tmp files
 
@@ -97,23 +104,24 @@ class ExtractCLIP(torch.nn.Module):
         """
 
         def _process_frame(frame):
-            frame = video.get_frame(frame)
+            # frame = video.get_frame(frame)
             if frame is None:
                 return None
             frame = Image.fromarray(frame)
             frame = preprocess_func(frame)  # C H W
             return frame
 
-        video = mmcv.VideoReader(str(video_path))  # H W C
-        fps, frame_cnt = video.fps, video.frame_cnt
-        mspf = 0.001 / fps  # ms per frame
+        frames, fps, timestamps_ms = extract_frames(str(video_path), self.extract_method)
+        # video = mmcv.VideoReader(str(video_path))  # H W C
+        # fps, frame_cnt = video.fps, video.frame_cnt
+        # mspf = 0.001 / fps  # ms per frame
+        #
+        # assert self.extraction_fps is not None
+        # samples_num = int(frame_cnt / fps * self.extraction_fps)  # get num of sample frame to be extracted
+        # samples_ix = np.linspace(1, frame_cnt - 2, samples_num).astype(int)  # 开头结尾两帧可能怪怪的会返回None
+        # timestamps_ms = [i * mspf for i in samples_ix]
 
-        assert self.extraction_fps is not None
-        samples_num = int(frame_cnt / fps * self.extraction_fps)  # get num of sample frame to be extracted
-        samples_ix = np.linspace(1, frame_cnt - 2, samples_num).astype(int)  # 开头结尾两帧可能怪怪的会返回None
-        timestamps_ms = [i * mspf for i in samples_ix]
-
-        frames = [i for i in map(lambda x: _process_frame(x), samples_ix) if i is not None]
+        frames = [i for i in map(lambda x: _process_frame(x), frames) if i is not None]
         frames = torch.stack(frames).to(device)  # T C H W
         with torch.no_grad():
             features = model.encode_image(frames)  # T E
