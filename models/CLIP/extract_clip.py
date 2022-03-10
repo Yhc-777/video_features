@@ -58,10 +58,11 @@ class ExtractCLIP(torch.nn.Module):
         elif self.feature_type == 'CLIP4CLIP-ViT-B-32':
             model_path = os.path.join(pathlib.Path(__file__).parent, 'checkpoints', 'CLIP4CLIP-ViT-B-32.pth')
             # print(model_path)
-            assert os.path.exists(model_path)
+            if not os.path.exists(model_path):
+                raise ValueError(model_path)
             model, preprocess = clip.load(model_path, device=device)
         else:
-            raise NotImplementedError
+            raise NotImplementedError(self.feature_type)
         model.eval()
 
         feats_list = []

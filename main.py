@@ -31,7 +31,7 @@ def parallel_feature_extraction(args):
     elif args.feature_type == 'pwc':
         from models.pwc.extract_pwc import ExtractPWC
         extractor = ExtractPWC(args)
-    elif args.feature_type == 'CLIP-ViT-B/32':
+    elif args.feature_type in ['CLIP-ViT-B/32', 'CLIP4CLIP-ViT-B-32']:
         from models.CLIP.extract_clip import ExtractCLIP
         extractor = ExtractCLIP(args)
     else:
