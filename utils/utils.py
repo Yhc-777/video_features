@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import pathlib as plb
 import subprocess
 from typing import Dict, List
@@ -209,8 +210,12 @@ def which_ffmpeg() -> str:
     Returns:
         str -- path to the library
     """
-    result = subprocess.run(['which', 'ffmpeg'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    ffmpeg_path = result.stdout.decode('utf-8').replace('\n', '')
+    if 'linux' in sys.platform:
+        result = subprocess.run(['which', 'ffmpeg'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ffmpeg_path = result.stdout.decode('utf-8').replace('\n', '')
+    else:
+        # result = subprocess.run(['Get-Command', 'ffmpeg'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ffmpeg_path = "ffmpeg"
     return ffmpeg_path
 
 

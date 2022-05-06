@@ -34,6 +34,9 @@ def parallel_feature_extraction(args):
     elif args.feature_type in ['CLIP-ViT-B/32', 'CLIP4CLIP-ViT-B-32']:
         from models.CLIP.extract_clip import ExtractCLIP
         extractor = ExtractCLIP(args)
+    elif args.feature_type == 'vggish_torch':
+        from models.vggish_torch.extract_vggish import ExtractVGGish
+        extractor = ExtractVGGish(args)
     else:
         raise NotADirectoryError
 
@@ -72,9 +75,12 @@ def cpu_feature_extraction(args):
     elif args.feature_type == 'pwc':
         from models.pwc.extract_pwc import ExtractPWC
         extractor = ExtractPWC(args)
-    elif args.feature_type in ['CLIP-ViT-B/32', 'CLIP4CLIP-ViT-B-32']:
+    elif args.feature_type in ['CLIP-ViT-B/32', 'CLIP-ViT-B/16', 'CLIP4CLIP-ViT-B-32']:
         from models.CLIP.extract_clip import ExtractCLIP
         extractor = ExtractCLIP(args)
+    elif args.feature_type == 'vggish_torch':
+        from models.vggish_torch.extract_vggish import ExtractVGGish
+        extractor = ExtractVGGish(args)
     else:
         raise NotADirectoryError
 
@@ -88,7 +94,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract Features')
     parser.add_argument('--feature_type', required=True,
                         choices=['i3d', 'vggish', 'r21d_rgb', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-                                 'resnet152', 'raft', 'pwc', 'CLIP-ViT-B/32', 'CLIP4CLIP-ViT-B-32'])
+                                 'resnet152', 'raft', 'pwc', 'CLIP-ViT-B/32', 'CLIP-ViT-B/16', 'CLIP4CLIP-ViT-B-32', 'vggish_torch'])
     parser.add_argument('--video_paths', nargs='+', help='space-separated paths to videos')
     parser.add_argument('--flow_paths', nargs='+', help='space-separated paths to video flow images')
     parser.add_argument('--file_with_video_paths', help='.txt file where each line is a path')
