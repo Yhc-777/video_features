@@ -10,7 +10,8 @@ from PIL import Image
 import numpy as np
 import torch
 import torch.nn.functional as F
-import mmcv
+# import mmcv
+import cv2
 
 IMAGENET_CLASS_PATH = './utils/IN_label_map.txt'
 KINETICS_CLASS_PATH = './utils/K400_label_map.txt'
@@ -60,6 +61,7 @@ def action_on_extraction(feats_dict: Dict[str, np.ndarray], video_path, output_p
         video_path (str or List(str)): A path to the video or a list where the video path is the first element.
         on_extraction (str): What to do with the features on extraction.
         output_path (str): Where to save the features if `save_numpy` or `save_pickle` is used.
+        outframes_path(str):添加的存放抽帧图片的文件
     """
     suffix = {'save_numpy': 'npy', 'save_pickle': 'pkl'}
     if type(video_path) is list or type(video_path) is tuple:  # avoid certain mistakes
@@ -301,14 +303,19 @@ def extract_frames(path: str, method: str):
         method: <extract_method>_<parameters>
                 e.g. fix_2    ->    fix fps of 2
                      uni_12   ->    uniformly samples 12 frames
+        outframes_path(str):添加的存放抽帧图片的文件
     Returns:
         sample_idx, fps, timestamps_ms
     """
     ext = method.split('_')[0]
     params = method.split('_')[1:]
 
-    video = mmcv.VideoReader(str(path))  # H W C
-    fps, frame_cnt = video.fps, video.frame_cnt
+    # video = mmcv.VideoReader(str(path))  # H W C
+    # fps, frame_cnt = video.fps, video.frame_cnt
+    video=cv2.VideoCapture(str(path))
+    fps = video.get(cv2.CAP_PROP_FPS)
+    frame_cnt = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+
     mspf = 0.001 / fps  # ms per frame
     if ext == "fix":
         # get num of sample frame to be extracted
@@ -318,16 +325,45 @@ def extract_frames(path: str, method: str):
         timestamps_ms = [i * mspf for i in samples_ix]
         frames = []
         for idx in samples_ix:
-            frames.append(video.get_frame(idx))
+            # frames.append(video.get_frame(idx))
+            video.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            ret, frame = video.read()
+            frames.append(frame)
         return frames, fps, timestamps_ms
     elif ext == 'uni':
-        samples_num = int(params[0])
+        # samples_num = int(params[0])
+        sampling_interval=int(params[0])  #每6帧采样一帧
         # ignore some frames to avoid strange bugs
-        samples_ix = np.linspace(1, frame_cnt - 2, samples_num).astype(int)
+        # samples_ix = np.linspace(1, frame_cnt - 2, samples_num).astype(int)
+
+        #修改它的采样方法，每6帧采样一帧
+        samples_ix = list(range(5, frame_cnt, sampling_interval))
+        
+        print(f'采样帧数：{len(samples_ix)}')
+
         timestamps_ms = [i * mspf for i in samples_ix]
         frames = []
-        for idx in samples_ix:
-            frames.append(video.get_frame(idx))
+        for i,idx in enumerate(samples_ix):
+            # frames.append(video.get_frame(idx))
+            video.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            ret, frame = video.read()
+            #------------在此处进行抽帧保存--------------------
+            # print(f'path:{str(path)}')
+            without_extension_path=os.path.splitext(path)[0]
+            # print(f'without_extension_path:{str(without_extension_path)}')
+
+            frames_save_path=without_extension_path.replace('MSVD_video','MSVD_save_frames')
+            if not os.path.exists(frames_save_path):
+                os.makedirs(frames_save_path) 
+
+            # print(f'frames_save_path:{frames_save_path}')
+            if ret:
+                frame_filename = os.path.join(frames_save_path, f'frame_{i}.jpg')
+                # print(f'frame_filename:{str(frame_filename)}')
+                cv2.imwrite(frame_filename, frame)
+
+            frames.append(frame)
+        video.release()
         return frames, fps, timestamps_ms
     else:
         raise NotImplementedError(f'{ext} are not supported')

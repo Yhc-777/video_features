@@ -4,8 +4,9 @@ from typing import Dict, Union, Callable
 
 import numpy as np
 import torch
-import clip
-import mmcv
+# import clip
+from . import clip_src as clip
+# import mmcv
 import PIL
 from PIL import Image
 from tqdm import tqdm

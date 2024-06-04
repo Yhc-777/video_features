@@ -3,7 +3,7 @@ import traceback
 from typing import Dict, Union
 
 import cv2
-import mmcv
+# import mmcv
 import numpy as np
 import torch
 import pathlib as plb
@@ -26,8 +26,8 @@ I3D_RGB_PATH = './models/i3d/checkpoints/i3d_rgb.pt'
 I3D_FLOW_PATH = './models/i3d/checkpoints/i3d_flow.pt'
 PRE_CENTRAL_CROP_MIN_SIDE_SIZE = 256
 CENTRAL_CROP_MIN_SIDE_SIZE = 224
-DEFAULT_I3D_STEP_SIZE = 64
-DEFAULT_I3D_STACK_SIZE = 64
+DEFAULT_I3D_STEP_SIZE = 5   #64
+DEFAULT_I3D_STACK_SIZE =10  # 64
 I3D_CLASSES_NUM = 400
 
 class ExtractI3D(torch.nn.Module):
@@ -112,7 +112,7 @@ class ExtractI3D(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        models = {}
+        models = {}   #这里用字典存储I3D中rgb、flow两个预训练的模型 model['rgb']、model['flow']
         for stream in self.streams:
             models[stream] = I3D(num_classes=self.i3d_classes_num, modality=stream).to(device).eval()
             models[stream].load_state_dict(torch.load(self.i3d_weights_paths[stream]))
@@ -205,10 +205,20 @@ class ExtractI3D(torch.nn.Module):
                         flow_stack_ts = []
                         for fl_x, fl_y in flow_stack:
                             # torch.Size([2, 256, 344])
-                            flow_stack_ts.append(torch.stack([
-                                torch.tensor(mmcv.imread(fl_x, flag='grayscale')),
-                                torch.tensor(mmcv.imread(fl_y, flag='grayscale'))
-                            ], dim=0))
+                            # flow_stack_ts.append(torch.stack([
+                            #     torch.tensor(mmcv.imread(fl_x, flag='grayscale')),
+                            #     torch.tensor(mmcv.imread(fl_y, flag='grayscale'))
+                            # ], dim=0))
+
+                            # 使用cv2.imread读取图像，默认是BGR格式
+                            frame_x = cv2.imread(fl_x, cv2.IMREAD_GRAYSCALE)  # 转换为灰度图像
+                            frame_y = cv2.imread(fl_y, cv2.IMREAD_GRAYSCALE)  # 转换为灰度图像
+                            # 将NumPy数组转换为torch.tensor
+                            tensor_x = torch.tensor(frame_x, dtype=torch.float32)
+                            tensor_y = torch.tensor(frame_y, dtype=torch.float32)
+                            # 将两个灰度图像的张量堆叠到一起
+                            flow_stack_ts.append(torch.stack([tensor_x, tensor_y], dim=0))
+
                         # torch.Size([64, 2, 256, 344])
                         stream_slice = torch.stack(flow_stack_ts, dim=0).to(device)
                     elif stream == 'rgb':
@@ -228,33 +238,58 @@ class ExtractI3D(torch.nn.Module):
                         print(f'{video_path} @ stack {stack_counter} ({stream} stream)')
                         show_predictions_on_dataset(logits, 'kinetics')
 
-        if self.flow_type == 'flow':
-            video = mmcv.VideoReader(video_path[0])
+        if self.flow_type == 'flow':         #如果是传入flow参数的话，意思是自己有已经处理好的光流图？需要放两个路径，视频路径和光流图路径
+            # video = mmcv.VideoReader(video_path[0])
+            video = cv2.VideoCapture(video_path[0])
+
             flow_x = list(plb.Path(video_path[1]).glob("flow_x*.jpg"))
             flow_x.sort(key=lambda x: x.stem[7:])
             flow_y = list(plb.Path(video_path[1]).glob("flow_y*.jpg"))
             flow_y.sort(key=lambda x: x.stem[7:])
             flows = list(zip(flow_x, flow_y))
         else:
-            video = mmcv.VideoReader(video_path)
-        fps, frame_cnt = video.fps, video.frame_cnt
-        mspf = 0.001 / fps  # ms per frame
+            # video = mmcv.VideoReader(video_path)       
+            video = cv2.VideoCapture(video_path)
+        # fps, frame_cnt = video.fps, video.frame_cnt
+        fps, frame_cnt = video.get(cv2.CAP_PROP_FPS), int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        mspf = 0.001 / fps  # ms per frame  
 
         # Load rgb frames from video
         if self.extraction_fps is not None:  # when fps is a fix number
             samples_num = int(frame_cnt / fps * self.extraction_fps)  # get num of sample frame to be extracted
             samples_ix = np.linspace(1, frame_cnt - 1, samples_num).astype(int)
-            frames = [video.get_frame(i) for i in samples_ix]
+            # frames = [video.get_frame(i) for i in samples_ix]  替换如下
+            frames=[]
+            for i in samples_ix:
+                video.set(cv2.CAP_PROP_POS_FRAMES, i)
+                ret,frame=video.read()
+                if ret:  # 如果帧读取成功
+                    frames.append(frame)  # 添加到帧列表
+
             frames = [i for i in frames if i is not None]  # make sure no NoneType in frames
             timestamps_ms = [i * mspf for i in samples_ix]
         elif frame_cnt < DEFAULT_I3D_STACK_SIZE + 1:  # not enough frames
             samples_num = DEFAULT_I3D_STACK_SIZE + 1
             samples_ix = np.linspace(1, frame_cnt - 1, samples_num).astype(int)
-            frames = [video.get_frame(i) for i in samples_ix]
+            # frames = [video.get_frame(i) for i in samples_ix]
+            frames = []
+            for i in samples_ix:
+                video.set(cv2.CAP_PROP_POS_FRAMES, i)
+                ret, frame = video.read()
+                if ret:  # 如果帧读取成功
+                    frames.append(frame)  # 添加到帧列表
+                    
             frames = [i for i in frames if i is not None]  # make sure no NoneType in frames
             timestamps_ms = [i * mspf for i in samples_ix]
         else:  # get all frames
-            frames = [video.get_frame(i) for i in range(frame_cnt)]
+            # frames = [video.get_frame(i) for i in range(frame_cnt)]
+            frames=[]
+            for i in range(frame_cnt):
+                video.set(cv2.CAP_PROP_POS_FRAMES, i)
+                ret, frame = video.read()
+                if ret:  # 如果帧读取成功
+                    frames.append(frame)  # 添加到帧列表
+                
             frames = [i for i in frames if i is not None]  # make sure no NoneType in frames
             timestamps_ms = [i * mspf for i in range(frame_cnt)]
 
